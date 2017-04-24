@@ -4,13 +4,26 @@
  * Сервис-воркер, обеспечивающий оффлайновую работу избранного
  */
 
-const CACHE_VERSION = '1.0.0-broken';
+const CACHE_VERSION = '1.0.0-fixed';
 
-importScripts('../vendor/kv-keeper.js-1.0.4/kv-keeper.js');
+const RESOURCES_CACHE = [
+    'gifs.html',
+    './assets/blocks.js',
+    './assets/star.svg',
+    './assets/style.css',
+    './assets/templates.js',
+    './vendor/bem-components-dist-5.0.0/touch-phone/bem-components.dev.js',
+    './vendor/bem-components-dist-5.0.0/touch-phone/bem-components.dev.css',
+    './vendor/kv-keeper.js-1.0.4/kv-keeper.js'
+];
+
+importScripts('./vendor/kv-keeper.js-1.0.4/kv-keeper.js');
 
 
 self.addEventListener('install', event => {
-    const promise = preCacheAllFavorites()
+    const promise = preCacheAllResources()
+
+        .then(() => preCacheAllFavorites())
         // Вопрос №1: зачем нужен этот вызов?
         .then(() => self.skipWaiting())
         .then(() => console.log('[ServiceWorker] Installed!'));
@@ -38,8 +51,7 @@ self.addEventListener('fetch', event => {
 
     let response;
     if (needStoreForOffline(cacheKey)) {
-        response = caches.match(cacheKey)
-            .then(cacheResponse => cacheResponse || fetchAndPutToCache(cacheKey, event.request));
+        response = fetchAndPutToCache(cacheKey, event.request);
     } else {
         response = fetchWithFallbackToCache(event.request);
     }
@@ -53,6 +65,14 @@ self.addEventListener('message', event => {
     event.waitUntil(promise);
 });
 
+
+// Кешировать все ресурсы
+function preCacheAllResources() {
+    return caches.open(CACHE_VERSION)
+    .then(cache => {
+        return cache.addAll(RESOURCES_CACHE);
+    });
+}
 
 // Положить в новый кеш все добавленные в избранное картинки
 function preCacheAllFavorites() {
@@ -124,11 +144,14 @@ function deleteObsoleteCaches() {
 }
 
 // Нужно ли при скачивании сохранять ресурс для оффлайна?
+// Нужно.
 function needStoreForOffline(cacheKey) {
     return cacheKey.includes('vendor/') ||
         cacheKey.includes('assets/') ||
+        cacheKey.includes('gifs.html') ||
         cacheKey.endsWith('jquery.min.js');
 }
+
 
 // Скачать и добавить в кеш
 function fetchAndPutToCache(cacheKey, request) {
